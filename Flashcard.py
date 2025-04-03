@@ -52,7 +52,7 @@ class Deck:
         while True:
             print(deck)
             choice = input("Do you want to add more cards?\n1): Yes:\n2): No:\n")
-            if choice.lower() == "2":
+            if choice.lower() == "2": #TODO: Why do we need lower() here? its just numbers...
                 break
             elif choice.lower() == "1":
                 self.makeCard(deck)
@@ -125,7 +125,11 @@ class Deck:
                 for idx, d in enumerate(existingDecks, 1):
                     print(f"{idx}): {d[:-4]}")
                 deck = input("")
-                if deck.isnumeric() and 1 <= int(deck) <= len(existingDecks):
+                # TODO: You might wanna double check if this works.
+                # i.e. 1 <= deckIdx <= len(existingDecks) might evaluate (1 <= deckIdx) <= len(existingDecks) which returns either 1 or 0
+                # Also, I don't get why you are using a 1-indexing here, just make the user enter 0 to len(existingDecks) - 1
+                # eeh I guess it works
+                if deck.isnumeric() and 1 <= int(deck) <= len(existingDecks): 
                     selectedDeck = existingDecks[int(deck) - 1]
                     self.deckName = selectedDeck
                     return self.deckName
@@ -154,6 +158,7 @@ class Deck:
                     print("Invalid file!")
                     return
                 f.close()
+                #TODO: I'm assuming you are going to call extractDeck here?
                 filename = os.path.basename(deckImport)
                 destinationPath = os.path.join(self.path, filename)
                 os.rename(deckImport, destinationPath)
@@ -199,8 +204,11 @@ class Deck:
             print("You need to select a deck first!")
 
         deckCopy = self.deck
-        deckCopy.pop(0)
+        deckCopy.pop(0) # TODO: make absolutely sure this is a header and not a card
         print(self.deck)
+        # TODO: I understand why you are popping, but remember that arrays have O(n) deletion time complexity
+        # self.deck could still be a list (i think it should be) but in study, the copy can be a different data structure
+        # try thinking of a data structure with O(1) deletion time complexity
         for i in range(0, len(self.deck)):
             line = random.randint(0, len(self.deck) - 1)
             print("Question")
@@ -250,6 +258,8 @@ class Deck:
             print("You need to select a deck first!")
             return
 
+        # TODO: Just putting it out there, but consider storing your cards in a SQL database instead of a CSV file
+        # or make a project using SQL
         while True:
             print(""
                   "1): Edit Cards\n"
@@ -266,7 +276,7 @@ class Deck:
                 self.printDeck()
 
             # recall function
-            elif choice == "2":
+            elif choice == "2": # TODO: If you are sorting it... make sure that when you study again, the header is not included in the deck
                 while True:
                     print("Sort by what?"
                           "\n1): Answer alphabetically"
@@ -439,9 +449,11 @@ class TimedCard(Card):
 
     def displayDateCreated(self):
         return self.date
-
+# TODO: This shouldn't be a global variable, make it a static class variable https://www.digitalocean.com/community/tutorials/understanding-class-and-instance-variables-in-python-3
 invalidChars = ["\\","/",":", "*", "?",'"', "<", ">", "|"] #characters that can not be in a file's name in windows
 
+# TODO: NO NEVER PUT AN ABSOLUTE PATH IN CODE OTHERWISE IT WON'T WORK ON OTHER COMPUTERS
+# use a relative path from the current working directory like "./Decks" https://www.redhat.com/en/blog/linux-path-absolute-relative
 directory = r"C:\Users\JoJo\Desktop\Python\hw west\Midterm\Decks"+'\\' # replace with any desired path to store the decks
 
 def printCards(deck):
@@ -482,35 +494,39 @@ def quickSort(ar,low,high,obj_func):
 """
 MAIN LOOP HERE
 """
+# TODO: resist the urge to put code in the void, put it inside a function
+def main():
+    deck = Deck(directory)
+    while True:
 
-deck = Deck(directory)
-while True:
+        print(""
+            "1): Make Deck"
+            "\n2): Select Deck"
+            "\n3): Study Deck"
+            "\n4): Edit Deck"
+            "\n5): Export Deck"
+            "\n6): Import Deck"
+            "\n7): Exit"
+            )
+        menuChoice = input("Choose an option:\n")
 
-    print(""
-          "1): Make Deck"
-          "\n2): Select Deck"
-          "\n3): Study Deck"
-          "\n4): Edit Deck"
-          "\n5): Export Deck"
-          "\n6): Import Deck"
-          "\n7): Exit"
-          )
-    menuChoice = input("Choose an option:\n")
+        if menuChoice == "7":
+            break
+        elif menuChoice == "1":
+            deck.makeDeck()
+        elif menuChoice == "2":
+            deck.selectDeck()
+            deck.extractDeck()
+        elif menuChoice == "3":
+            deck.studyDeck()
+        elif menuChoice == "4":
+            deck.editDeck()
+        elif menuChoice == "5":
+            deck.exportDeck()
+        elif menuChoice == "6":
+            deck.importDeck()
+        else:
+            print("Invalid Input!")
 
-    if menuChoice == "7":
-        break
-    elif menuChoice == "1":
-        deck.makeDeck()
-    elif menuChoice == "2":
-        deck.selectDeck()
-        deck.extractDeck()
-    elif menuChoice == "3":
-        deck.studyDeck()
-    elif menuChoice == "4":
-        deck.editDeck()
-    elif menuChoice == "5":
-        deck.exportDeck()
-    elif menuChoice == "6":
-        deck.importDeck()
-    else:
-        print("Invalid Input!")
+if __name__ == "__main__":
+    main()
