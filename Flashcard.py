@@ -1,6 +1,20 @@
-import csv, os, shutil
+import csv, os, shutil,time, heapq
 import random
 from datetime import datetime as dt
+
+class PriorityQueue:
+    def __init__(self):
+        self.heap = []
+
+    def isEmpty(self):
+        return len(self.heap) == 0
+
+    def enqueue(self,priority, data):
+        heapq.heappush(self.heap,(priority,data))
+
+    def dequeue(self):
+        if self.heap:
+            return heapq.heappop(self.heap)[1]
 
 class Deck:
     def __init__(self,path):
@@ -17,6 +31,7 @@ class Deck:
         self.path = path
         self.deck = None
         self.deckName = None
+        self.study_deck = DeckSchedule()
 
     def makeDeck(self):
         """
@@ -100,7 +115,9 @@ class Deck:
                 line = line.replace("\n", "")
                 # print(line)
                 line = line.split(",")
-                deck.append(Card(line[0], line[1], line[2], n))
+                card = Card(line[0], line[1], line[2], n)
+                deck.append(card)
+                self.study_deck.addCard(card)
         self.deck = deck
         return self.deck
 
@@ -187,7 +204,7 @@ class Deck:
 
     def studyDeck(self):
         """
-        A function where the user could study cards from the selected deck
+        A function where the user could study cards from the selected deck. The frequency of cards appearing is based on their review time
 
         Parameters:
         None
@@ -195,22 +212,56 @@ class Deck:
         Returns:
         None
         """
-        if self.deck is None:
+        if not self.deck:
             print("You need to select a deck first!")
+            return
 
-        deckCopy = self.deck
-        deckCopy.pop(0)
-        print(self.deck)
-        for i in range(0, len(self.deck)):
-            line = random.randint(0, len(self.deck) - 1)
-            print("Question")
-            print(self.deck[line].question)
-            input("\nPress enter to see the answer")
-            print("\nAnswer")
-            print(self.deck[line].answer, "\n")
-            input("\nPress enter to the next question")
-            print("\n" * 10)
-            deckCopy.pop(line)
+        deck_copy = self.study_deck
+        deck_copy.priority_deck.dequeue()#remove the header
+
+        while not deck_copy.priority_deck.isEmpty():
+            card_to_review = deck_copy.priority_deck.heap[0][1]
+            if card_to_review:
+                print("Question:")
+                print(card_to_review.question)
+                input("\nPress enter to see the answer")
+                print("\nAnswer:")
+                print(card_to_review.answer, "\n")
+
+                while True:
+                    choice = input("1): Again, 2): Hard, 3): Good, or 4): Remove Card")
+                    if choice == '1':
+                        self.study_deck.removeCard()
+                        deck_copy.updateReviewTime(card_to_review, 1)
+                        break
+                    elif choice == '2':
+                        deck_copy.updateReviewTime(card_to_review, 5)
+                        deck_copy.removeCard()
+                        break
+                    elif choice == '3':
+                        deck_copy.updateReviewTime(card_to_review, 10)
+                        deck_copy.removeCard()
+                        break
+                    elif choice == "4":
+                        deck_copy.removeCard()
+                        break
+                    else:
+                        print("Invalid Input!")
+
+        """OLD STUDY FUNCTION"""
+        # deckCopy = self.deck
+        # deckCopy.pop(0)
+        # print(self.deck)
+        # for i in range(0, len(self.deck)):
+        #     line = random.randint(0, len(self.deck) - 1)
+        #     print("Question")
+        #     print(self.deck[line].question)
+        #     input("\nPress enter to see the answer")
+        #     print("\nAnswer")
+        #     print(self.deck[line].answer, "\n")
+        #     input("\nPress enter to the next question")
+        #     print("\n" * 10)
+        #     deckCopy.pop(line)
 
     def printDeck(self):
         """
@@ -335,6 +386,11 @@ class Card:
         self.answer = answer
         self.date = date
         self.row = row_number
+        self.review_time = 1
+
+    def __lt__(self, other):
+        # Compare based on review_time
+        return self.review_time < other.review_time
 
     def displayQuestion(self):
         return self.question
@@ -425,6 +481,58 @@ class Card:
             else:
                 print("Invalid Input!")
 
+class DeckSchedule:
+    def __init__(self):
+        """
+        Initializes a deck to be studied as a Priority Queue
+
+        Parameters:
+        None
+
+        Returns:
+        None
+        """
+        self.priority_deck = PriorityQueue()
+
+    def addCard(self,card):
+        """
+        Adds a card with a priority number and their info to the priority queue
+
+        Parameters:
+        card (Card): The card to be added to the priority queue
+
+        Returns:
+        None
+        """
+        priority = card.review_time
+        self.priority_deck.enqueue(priority,card)
+
+    def removeCard(self):
+        """
+        Removes a card if it is over review date
+
+        Parameters:
+        None
+
+        Returns:
+        None
+        """
+        #do a check here or in the function
+        self.priority_deck.dequeue()
+
+    def updateReviewTime(self,card,time):
+        """
+        Updates a card review time based on if the user knows/does not know the card for more frequent review
+
+        Parameters:
+        card (Card): The card to edit
+        time (int): The time to change in the review time
+
+        Returns:
+        None
+        """
+        card.review_time = time
+        self.addCard(card)
 
 class TimedCard(Card):
     def __init__(self,question,answer,date,time_limit,row_number):
@@ -514,3 +622,5 @@ while True:
         deck.importDeck()
     else:
         print("Invalid Input!")
+
+
