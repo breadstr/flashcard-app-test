@@ -1,6 +1,72 @@
-import csv, os, shutil
+import csv, os, shutil, heapq
 import random
 from datetime import datetime as dt
+
+class HashTable():
+    def __init__(self,size):
+        self.size = size
+        self.table = [None] * self.size
+        self.deleted = "deleted"
+
+    def hashFunction(self,key):
+        return abs(hash(key)) % self.size
+
+    def insert(self,key,card):
+        #hash key to find index
+        index = self.hashFunction(key)
+        count = 0
+
+        #check is hashed index free? if so then we put key,value there
+        while count < self.size:
+            if self.table[index] is None or self.table[index] == self.deleted or self.table[index][0] == key:
+                self.table[index] = (key,card)
+                return
+            #if not linear probe keep checking the next index for a spot wrap around if nessasary
+            index = (index + 1) % self.size
+            count += 1
+
+    def get(self,key):
+        #hash out initial index
+        index = self.hashFunction(key)
+        count = 0
+
+        while count < self.size:
+            if self.table[index] is None:
+                return None
+            if self.table[index] != self.deleted and self.table[index][0] == key:
+                return self.table[index][0],self.table[index][1]
+            index = (index + 1) % self.size
+            count += 1
+        return None
+
+    def delete(self,key):
+        index = self.hashFunction(key)
+        count = 0
+
+        while count < self.size:
+            if self.table[index] is None:
+                return None
+            if self.table[index] != self.deleted and self.table[index][0] == key:
+                poppedValue = self.table[index]
+                self.table[index] = self.deleted
+                return poppedValue
+            index = (index + 1) % self.size
+            count += 1
+        return None
+
+class PriorityQueue:
+    def __init__(self):
+        self.heap = []
+
+    def isEmpty(self):
+        return len(self.heap) == 0
+
+    def enqueue(self,priority, data):
+        heapq.heappush(self.heap,(priority,data))
+
+    def dequeue(self):
+        if self.heap:
+            return heapq.heappop(self.heap)[1]
 
 class Deck:
     def __init__(self,path):
@@ -17,24 +83,26 @@ class Deck:
         self.path = path
         self.deck = None
         self.deckName = None
+        self.study_deck = DeckSchedule()
+        self.hash_table = None
 
     def makeDeck(self):
         """
         Generates a deck based on the users inputs as a csv file
 
         Parameters:
-        None
+        Nonej
 
         Returns:
         None
         """
         deck = []
-        deck.append(["question", "answer", "date_created", "deck"])  # appends header
+        deck.append(["question", "answer", "date_created"])  # header for the csv
         existingDecks = os.listdir(self.path)
         while True:
             deckName = input("Name of the deck:\n")
 
-            if any(char in deckName for char in invalidChars):  # if any invalid characters are in the name
+            if any(char in deckName for char in invalidChars):  # if any invalid characters are in the deck name
                 print(f"The name can not contain:")
                 print(*invalidChars, sep=",")
                 print("\n")
@@ -48,14 +116,21 @@ class Deck:
             else:
                 break
 
-        self.makeCard(deck)
-        while True:
-            print(deck)
+        card = self.makeCard()
+        deck.append(card)
+
+        while len(deck) < 101:
+            if len(deck) == 101:
+                print("You have reached the maximum limit of 100 cards in this deck.")
+                break
+
             choice = input("Do you want to add more cards?\n1): Yes:\n2): No:\n")
+
             if choice.lower() == "2":
                 break
             elif choice.lower() == "1":
-                self.makeCard(deck)
+                card = self.makeCard()
+                deck.append(card)
             else:
                 print("Invalid Input! Please enter '1' for Yes or '2' for No.")
 
@@ -63,9 +138,9 @@ class Deck:
             w = csv.writer(f)
             w.writerows(deck)
 
-    def makeCard(self,deck):
+    def makeCard(self):
         """
-        Generates a card based oon the users inputs, adds it to the  deck
+        Generates a card based on the users inputs and adds it to the deck
 
         Paramaters:
         deck (arr): array of all cards to store as a csv
@@ -74,13 +149,23 @@ class Deck:
         None
         """
         card = []
-        question = str(input("Question for the card:\n"))
-        answer = str(input("Answer for the card:\n"))
+        while True:
+            question = str(input("Question for the card:\n"))
+            if question == "":
+                print("The card must have a question!")
+            else:
+                break
+        while True:
+            answer = str(input("Answer for the card:\n"))
+            if answer == "":
+                print("The card must have a answer!")
+            else:
+                break
         now = str(dt.now().date()) + " " + str(dt.now().time())[:-7]  # gets current date and time
         card.append(question)
         card.append(answer)
         card.append(now)
-        deck.append(card)
+        return card
 
     def extractDeck(self):
         """
@@ -92,17 +177,25 @@ class Deck:
         Returns:
         deck: (arr): An array where the data from a csv is stored
         """
-        deck = []  # used an array because need to sort and search from the data structure
-        with open(self.path + self.deckName, "r") as text:
-            csv = text.readlines()
-            for n, line in enumerate(csv, 0):
-                # print(line)
-                line = line.replace("\n", "")
-                # print(line)
-                line = line.split(",")
-                deck.append(Card(line[0], line[1], line[2], n))
-        self.deck = deck
-        return self.deck
+        try:
+            deck = []
+            with open(self.path + self.deckName, "r") as text:
+                csv = text.readlines()
+                for n, line in enumerate(csv, 0):
+                    line = line.replace("\n", "")
+                    line = line.split(",")
+                    card = Card(line[0], line[1], line[2], n)
+                    deck.append(card)
+                    self.study_deck.addCard(card)
+            deck.pop(0) #remove header
+            self.deck = deck
+            self.hash_table = HashTable(100)
+            for card in self.deck:
+                self.hash_table.insert(card.question.lower(), card)
+            return self.deck
+
+        except:
+            print("An error occurred")
 
     def selectDeck(self):
         """
@@ -115,7 +208,7 @@ class Deck:
         str: A string of the deck name the user chose
         """
         existingDecks = os.listdir(self.path)
-        if len(existingDecks) == 0:
+        if not existingDecks:
             print("There are no decks to select!\nYou can make decks at the main menu")
             return
 
@@ -124,9 +217,9 @@ class Deck:
                 print("Select a deck:")
                 for idx, d in enumerate(existingDecks, 1):
                     print(f"{idx}): {d[:-4]}")
-                deck = input("")
-                if deck.isnumeric() and 1 <= int(deck) <= len(existingDecks):
-                    selectedDeck = existingDecks[int(deck) - 1]
+                deck_choice = input("")
+                if deck_choice.isnumeric() and 1 <= int(deck_choice) <= len(existingDecks):
+                    selectedDeck = existingDecks[int(deck_choice) - 1]
                     self.deckName = selectedDeck
                     return self.deckName
                 else:
@@ -145,12 +238,12 @@ class Deck:
         deckImport = input("Enter the path to the deck you want to import:\n")
         try:
             if not os.path.exists(deckImport):
-                print("Error: File not found")
+                print("File not found")
                 return
 
             with open(deckImport, "r") as f:
                 text = f.read().strip()
-                if text.partition("\n")[0] != "question,answer,date_created,deck":
+                if text.partition("\n")[0] != "question,answer,date_created":
                     print("Invalid file!")
                     return
                 f.close()
@@ -172,7 +265,10 @@ class Deck:
         Returns:
         None
         """
+        cur_name = self.deckName
         selectedDeck = self.selectDeck()
+        self.deckName = cur_name # resets deck name to original one
+
         try:
             deckExport = input("Enter the path to the deck you want to export to:\n")
             if not os.path.isdir(deckExport):
@@ -187,30 +283,50 @@ class Deck:
 
     def studyDeck(self):
         """
-        A function where the user could study cards from the selected deck
+        A function where the user could study cards from the selected deck. The frequency of cards appearing is based on their review time
 
-        Parameters:
+        Parameters:c
         None
 
         Returns:
         None
         """
-        if self.deck is None:
+        if not self.deck:
             print("You need to select a deck first!")
+            return
 
-        deckCopy = self.deck
-        deckCopy.pop(0)
-        print(self.deck)
-        for i in range(0, len(self.deck)):
-            line = random.randint(0, len(self.deck) - 1)
-            print("Question")
-            print(self.deck[line].question)
-            input("\nPress enter to see the answer")
-            print("\nAnswer")
-            print(self.deck[line].answer, "\n")
-            input("\nPress enter to the next question")
-            print("\n" * 10)
-            deckCopy.pop(line)
+        deck_copy = self.study_deck
+        if deck_copy.priority_deck.heap:
+            deck_copy.priority_deck.dequeue()#remove the header if heap is not empty
+
+        while not deck_copy.priority_deck.isEmpty():
+            card_to_review = deck_copy.priority_deck.heap[0][1]
+            if card_to_review:
+                print("Question:")
+                print(card_to_review.question)
+                input("\nPress enter to see the answer")
+                print("\nAnswer:")
+                print(card_to_review.answer, "\n")
+
+                while True:
+                    choice = input("1): Again, 2): Hard, 3): Good, or 4): Remove Card")
+                    if choice == '1':
+                        self.study_deck.removeCard()
+                        deck_copy.updateReviewTime(card_to_review, 1)
+                        break
+                    elif choice == '2':
+                        deck_copy.updateReviewTime(card_to_review, 5)
+                        deck_copy.removeCard()
+                        break
+                    elif choice == '3':
+                        deck_copy.updateReviewTime(card_to_review, 10)
+                        deck_copy.removeCard()
+                        break
+                    elif choice == "4":
+                        deck_copy.removeCard()
+                        break
+                    else:
+                        print("Invalid Input!")
 
     def printDeck(self):
         """
@@ -224,20 +340,23 @@ class Deck:
         """
         while True:
             printCards(self.deck)
-            print(f"{len(self.deck)+1}): Back")
             cardEdit = input("Select a card to edit:")
             if cardEdit.isnumeric() and int(cardEdit) == len(self.deck) + 1:
-                break
+                return None
 
-            elif cardEdit.isnumeric() and int(cardEdit) - 1 < len(self.deck):
+            elif cardEdit.isnumeric() and 0 <= int(cardEdit) - 1 < len(self.deck):
                 cardEditIndex = int(cardEdit) - 1
-                self.deck[cardEditIndex].askCard(self.path,self.deckName)
+                question_data = self.deck[cardEditIndex].askCard(self.path, self.deckName)
+                if question_data:
+                    question, old_question = question_data
+                    return question,old_question
             else:
                 print("Invalid input!")
 
     def editDeck(self):
         """
-        A function where the user can edit specific cards. They can also sort or search cards
+        A function where the user can edit specific cards, add cards to the selected deck, sort cards by date
+        created, answer, or question, or search for a specific card
 
         Parameters:
         None
@@ -245,7 +364,6 @@ class Deck:
         Return:
         None
         """
-        # add while so that is keeps asking
         if self.deck is None:
             print("You need to select a deck first!")
             return
@@ -255,17 +373,23 @@ class Deck:
                   "1): Edit Cards\n"
                   "2): Sort Cards\n"
                   "3): Search Card\n"
-                  "4): Back"
+                  "4): Add Card\n"
+                  "5): Back"
                   )
             choice = input("Select an option: ")
 
-            if choice == "4":
+            if choice == "5":
                 break
 
             if choice == "1":
-                self.printDeck()
+                if self.printDeck():
+                    question,old_question = self.printDeck()
+                    if question != old_question:
+                        card = self.hash_table.get(old_question)[1]
+                        self.hash_table.delete(old_question.lower())
+                        self.hash_table.insert(question.lower(),card)
+                        print("Card successfully edited")
 
-            # recall function
             elif choice == "2":
                 while True:
                     print("Sort by what?"
@@ -278,14 +402,17 @@ class Deck:
                     if edit == "4":
                         break  # break from loop
                     elif edit == "1":
-                        self.deck = quickSort(self.deck, 0, len(self.deck) - 1, "question")
-                        self.editDeck()
-                    elif edit == "2":
                         self.deck = quickSort(self.deck, 0, len(self.deck) - 1, "answer")
-                        self.editDeck()
+                        print("Deck sorted by answer.")
+                        break
+                    elif edit == "2":
+                        self.deck = quickSort(self.deck, 0, len(self.deck) - 1, "question")
+                        print("Deck sorted by question.")
+                        break
                     elif edit == "3":
                         self.deck = quickSort(self.deck, 0, len(self.deck) - 1, "date")
-                        self.editDeck()
+                        print("Deck sorted by date.")
+                        break
                     else:
                         print("Invalid Input!")
 
@@ -299,17 +426,47 @@ class Deck:
                     if edit == "2":
                         break  # break from loop
 
-                    elif edit == "1":
-                        foundCards = []
-                        question = input("Enter question to search for:")
-                        for i in self.deck:
-                            if i.question == question:
-                                foundCards.append(i)
 
-                        self.printDeck()
+                    elif edit == "1":
+                        question = input("Enter question to search for:")
+                        found_card = self.hash_table.get(question.lower())
+                        if found_card:
+                            card = found_card[1]
+                            while True:
+                                print(f"\nFound, edit the card? "
+                                      f"Card): Question):{card.question} Answer): {card.answer} Date Created): {card.date}"
+                                      "\n1): Yes"
+                                      "\n2): No")
+                                search_card_edit = input("Select an option:")
+                                if search_card_edit == "1":
+                                    new_question, old_question = card.editCard(self.path, self.deckName)
+                                    if new_question != old_question:
+                                        self.hash_table.delete(old_question.lower())
+                                        self.hash_table.insert(new_question.lower(),card)
+                                elif search_card_edit == "2":
+                                    break
+                                else:
+                                    print("Invalid Input!")
+                        else:
+                            print("Card not found")
 
                     else:
                         print("Invalid Input!")
+
+            elif choice == "4":
+                if len(self.deck) > 100:
+                    print("You reached the max amount of cards in a deck.\nA deck cannot have more than 100 cards!")
+                    return
+                card_list = self.makeCard()
+                card = Card(card_list[0],card_list[1],card_list[2],len(self.deck)+1)
+                self.deck.append(card)
+                self.study_deck.addCard(card)
+                self.hash_table.insert(card.question.lower(),card)
+                with open(self.path + "\\" + self.deckName, "a", newline='') as f:
+                    w = csv.writer(f)
+                    w.writerow(card_list)
+                print("Card added")
+
 
             else:
                 print("Invalid input!")
@@ -317,8 +474,7 @@ class Deck:
 class Card:
     def __init__(self,question,answer,date,row_number):
         """
-        A basic card class that makes each card
-        in a deck a card
+        A basic card class that makes each card in a deck a card
 
         Parameters:
         question (str): The question to a card
@@ -335,6 +491,19 @@ class Card:
         self.answer = answer
         self.date = date
         self.row = row_number
+        self.review_time = 1 #default review time
+
+    def __lt__(self, other):
+        """
+        Determines if a card is less the another one
+
+        Parameters:
+        other (Card): A card class to compare with
+
+        Return
+        bool: True if card's review_timme is less than the other card's review_time, and False otherwise
+        """
+        return self.review_time < other.review_time
 
     def displayQuestion(self):
         return self.question
@@ -367,8 +536,8 @@ class Card:
             if edit == "2":
                 break  # break go back
             elif edit == "1":  # edits question
-                self.editCard(path,deckName)
-                break
+                question,old_question = self.editCard(path,deckName)
+                return question,old_question
             else:
                 print("Invalid input!")
 
@@ -383,9 +552,10 @@ class Card:
         Return:
         None
         """
+        old_question = self.question
         with open(path + "\\" + deckName, "r", newline="") as f:
             reader = csv.reader(f)
-            rows = list(reader)  # Store all rows in a list
+            rows = list(reader)  # store rows for editing
         while True:
             print("Old Question:")
             print(self.question)
@@ -396,9 +566,9 @@ class Card:
                 rows[self.row][0] = newQuestion
                 with open(path + "\\" + deckName, "w", newline='') as f:
                     w = csv.writer(f)
-                    w.writerows(rows)
+                    w.writerows(rows) # write new question
                     self.question = newQuestion
-                    break
+
 
             elif choice == "2":
                 break
@@ -415,30 +585,66 @@ class Card:
                 rows[self.row][1] = newAnswer
                 with open(path + "\\" + deckName, "w", newline='') as f:
                     w = csv.writer(f)
-                    w.writerows(rows)
+                    w.writerows(rows)# write new answer
                     self.answer = newAnswer
-                    break
-
             elif choice == "2":
                 break
 
             else:
                 print("Invalid Input!")
+        return self.question,old_question
 
+class DeckSchedule:
+    def __init__(self):
+        """
+        Initializes a deck to be studied as a Priority Queue
 
-class TimedCard(Card):
-    def __init__(self,question,answer,date,time_limit,row_number):
-        self.time = time_limit
-        super().__init__(question,answer,date,row_number)
+        Parameters:
+        None
 
-    def displayQuestion(self):# add a time lime to how long they can answer the question
-        return self.question
+        Returns:
+        None
+        """
+        self.priority_deck = PriorityQueue()
 
-    def displayAnswer(self):
-        return self.answer
+    def addCard(self,card):
+        """
+        Adds a card with a priority number and their info to the priority queue
 
-    def displayDateCreated(self):
-        return self.date
+        Parameters:
+        card (Card): The card to be added to the priority queue
+
+        Returns:
+        None
+        """
+        priority = card.review_time
+        self.priority_deck.enqueue(priority,card)
+
+    def removeCard(self):
+        """
+        Removes a card if it is over review date
+
+        Parameters:
+        None
+
+        Returns:
+        None
+        """
+        self.priority_deck.dequeue()
+
+    def updateReviewTime(self,card,time):
+        """
+        Updates a card review time based on if the user knows/does not know the card for more frequent review
+
+        Parameters:
+        card (Card): The card to edit
+        time (int): The time to change in the review time
+
+        Returns:
+        None
+        """
+        card.review_time = time
+        self.addCard(card)
 
 invalidChars = ["\\","/",":", "*", "?",'"', "<", ">", "|"] #characters that can not be in a file's name in windows
 
@@ -458,34 +664,31 @@ def printCards(deck):
         print(f"{n}): Question): {card.question} Answer):{card.answer} Date Created): {card.date}")
     print(f"{len(deck) + 1}): Back")
 
-def quickSort(ar,low,high,obj_func):
+def quickSort(ar, low, high, obj_func):
     if low >= high:
         return
 
-    pivot = ar[random.randint(low,high)]
-    i = low-1
-    for j in range(low,high):
-        if getattr(ar[j],obj_func) < getattr(pivot,obj_func):
+    pivot_index = random.randint(low, high)
+    ar[pivot_index], ar[high] = ar[high], ar[pivot_index]
+    pivot = getattr(ar[high], obj_func)
+
+    i = low - 1
+    for j in range(low, high):
+        if getattr(ar[j], obj_func) < pivot:
             i += 1
-            ar[i],ar[j] = ar[j],ar[i]
+            ar[i], ar[j] = ar[j], ar[i]
 
-    ar[i+1],ar[high] = ar[high],ar[i+1]
-    pi = i+1
+    # Place the pivot in its correct sorted position
+    ar[i + 1], ar[high] = ar[high], ar[i + 1]
+    partition_index = i + 1
 
-    quickSort(ar,low,pi-1,obj_func)
-    quickSort(ar,pi+1,high,obj_func)
+    quickSort(ar, low, partition_index - 1, obj_func)
+    quickSort(ar, partition_index + 1, high, obj_func)
 
-    return(ar)
-
-
-
-"""
-MAIN LOOP HERE
-"""
+    return ar
 
 deck = Deck(directory)
 while True:
-
     print(""
           "1): Make Deck"
           "\n2): Select Deck"
